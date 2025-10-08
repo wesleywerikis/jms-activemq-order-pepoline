@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  activemq:
+    image: rmohr/activemq:5.15.9
+    container_name: activemq
+    ports:
+      - "61616:61616"  # JMS (TCP)
+      - "8161:8161"    # Console Web
+    environment:
+      - ACTIVEMQ_ADMIN_LOGIN=admin
+      - ACTIVEMQ_ADMIN_PASSWORD=admin
+    restart: unless-stopped
