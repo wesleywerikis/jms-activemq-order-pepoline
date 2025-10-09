@@ -1,5 +1,6 @@
 package br.com.orderapi.order_api.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.support.converter.MappingJackson2MessageConverter;
 import org.springframework.jms.support.converter.MessageType;
@@ -9,6 +10,7 @@ public class JmsConfig {
 
     public static final String QUEUE_ORDERS_NEW = "orders.new";
 
+    @Bean
     public MappingJackson2MessageConverter jacksonJmsMessageConverter() {
         MappingJackson2MessageConverter converter = new MappingJackson2MessageConverter();
         converter.setTargetType(MessageType.TEXT);
