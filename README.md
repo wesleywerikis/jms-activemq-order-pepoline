@@ -2,98 +2,136 @@
 
 > **Portfólio:** Este projeto faz parte do meu portfólio voltado a back-end Java, com foco em **mensageria (JMS/ActiveMQ)**, **processamento assíncrono** e **boas práticas de integração entre microsserviços**.
 
+## 🧠 Visão Geral
+
+Pipeline assíncrono e desacoplado com **três serviços Spring Boot 3** que trocam mensagens via **ActiveMQ (JMS)**:
+
+1️⃣ **order-api** → expõe `POST /orders`, valida a carga e publica na fila **`orders.new`**.  
+2️⃣ **billing-worker** → consome **`orders.new`**, simula faturamento (gera `invoiceNumber` e `billedAt`) e publica **`orders.billed`**.  
+3️⃣ **notification-worker** → consome **`orders.billed`** e **loga** “notificando cliente do pedido X”.
+
 ---
 
-## 🧩 Arquitetura (em desenvolvimento)
+## 🧩 Arquitetura
 
-Atualmente, o pipeline possui **duas etapas implementadas** e uma terceira planejada:
+```mermaid
+flowchart LR
+  subgraph Producer
+    A[order-api\nPOST /orders] -->|JMS publish| Q1[(orders.new)]
+  end
 
-- 🟣 **order-api** → Serviço REST (Spring Boot Web + JMS) que expõe `POST /orders`, valida a carga e publica mensagens na fila **`orders.new`**.  
-- 🟠 **billing-worker** → Worker JMS que consome **`orders.new`**, simula o faturamento (gera NF e `billedAt`) e publica em **`orders.billed`**.  
-- 🟢 *(em breve)* **notification-worker** → Worker JMS que consumirá **`orders.billed`** e registrará notificações simuladas ao cliente.
+  subgraph Worker 1
+    Q1 --> B[billing-worker\n@JmsListener] -->|JMS publish| Q2[(orders.billed)]
+  end
 
-📈 **Fluxo atual:**  
-`order-api → orders.new → billing-worker → orders.billed`
+  subgraph Worker 2
+    Q2 --> C[notification-worker\n@JmsListener]
+  end
+```
 
-🚧 **Próximo passo:**  
-`notification-worker` para completar o pipeline de ponta a ponta.
+**Características principais**
+- Comunicação **assíncrona** (cliente recebe `202 Accepted` imediatamente).
+- Serviços **independentes** (sem chamadas HTTP diretas).
+- Mensagens em **JSON**, convertidas via `MappingJackson2MessageConverter`.
 
 ---
 
 ## ⚙️ Stack
 
-- ☕ **Java 17**  
-- 🚀 **Spring Boot 3.x**  
-- 💬 **ActiveMQ Classic** (`rmohr/activemq:5.15.9` via Docker Compose)  
-- 📦 **JMS (spring-boot-starter-activemq)**  
-- 🔧 **Maven Wrapper (mvnw)**  
+- ☕ **Java 17**
+- 🚀 **Spring Boot 3.x**
+- 💬 **ActiveMQ Classic** (`rmohr/activemq:5.15.9`) via **Docker Compose**
+- 📦 **JMS** (`spring-boot-starter-activemq`)
+- 🔧 **Maven Wrapper** (`mvnw` / `mvnw.cmd`)
+
+---
+
+## 📁 Estrutura de Pastas
+
+```
+jms-activemq-order-pipeline/
+├─ docker-compose.yml
+├─ README.md
+├─ order-api/
+│  └─ src/main/java/br/com/orderapi/order_api/...
+├─ billing-worker/
+│  └─ src/main/java/br/com/billingworker/billing_worker/...
+└─ notification-worker/
+   └─ src/main/java/br/com/notificationworker/notification_worker/...
+```
 
 ---
 
 ## 🧱 Pré-requisitos
 
-- Docker + Docker Compose  
-- JDK 17  
-- (Opcional) Maven instalado — os subprojetos já incluem Maven Wrapper  
+- **Docker** + **Docker Compose**
+- **JDK 17**
+- (Opcional) **Maven** instalado — os subprojetos incluem Maven Wrapper
 
 ---
 
-## 🐋 Subindo o broker
+## 🐋 Subindo o ActiveMQ
 
-Na pasta raiz:
+Na **raiz** do repositório:
 
 ```bash
 docker-compose up -d
 ```
 
 Acesse o painel do ActiveMQ:  
-➡️ [http://localhost:8161](http://localhost:8161)  
-*(usuário/senha padrão: `admin` / `admin`)*
+➡️ [http://localhost:8161](http://localhost:8161)  (usuário/senha: `admin` / `admin`)
+
+Portas de interesse:
+- **61616** → JMS (TCP)
+- **8161** → Console Web
 
 ---
 
-## 🧠 Objetivo do projeto
+## 🔌 Configurações dos Serviços
 
-Demonstrar o uso de **mensageria com JMS** em uma arquitetura **assíncrona e desacoplada**, onde cada serviço é responsável por uma etapa do processo:
+Todos os serviços compartilham a mesma configuração base:
 
-1. **Produção de eventos** (`order-api`)
-2. **Processamento e faturamento** (`billing-worker`)
-3. **Notificação final** (`notification-worker`, em desenvolvimento)
-
----
-
-## 📚 Conceitos abordados até o momento
-
-- Produção e consumo de mensagens com **JmsTemplate** e **@JmsListener**  
-- Conversão de mensagens usando **MappingJackson2MessageConverter**  
-- Padrão **“publish → process → publish”** entre microsserviços  
-- Integração de múltiplos serviços via **ActiveMQ em Docker**  
-- Princípios de **API assíncrona** (retorno `202 Accepted`)  
-
----
-
-## 🔜 Próximos passos
-
-- Implementar o **notification-worker**  
-- Adicionar logs estruturados e métricas básicas  
-- Criar um diagrama visual de fluxo para documentação  
-
----
-
-## 💡 Dica de execução rápida
-
-1️⃣ **Suba o broker:**
-```bash
-docker-compose up -d
+```yaml
+spring:
+  activemq:
+    broker-url: tcp://localhost:61616
+    user: admin
+    password: admin
+  jms:
+    pub-sub-domain: false  # filas (queues)
 ```
 
-2️⃣ **Rode os serviços (em terminais separados):**
+Portas HTTP padrão:
+- **order-api:** 8081  
+- **billing-worker:** 8082  
+- **notification-worker:** 8083  
+
+---
+
+## ▶️ Como Rodar (local)
+
+Abra **três terminais** (um para cada serviço):
+
 ```bash
-cd order-api && ./mvnw spring-boot:run
-cd billing-worker && ./mvnw spring-boot:run
+# Terminal 1
+cd order-api
+./mvnw spring-boot:run
+
+# Terminal 2
+cd billing-worker
+./mvnw spring-boot:run
+
+# Terminal 3
+cd notification-worker
+./mvnw spring-boot:run
 ```
 
-3️⃣ **Envie um pedido:**
+---
+
+## 🧪 Teste Rápido
+
+Envie um pedido:
+
 ```bash
 curl -X POST http://localhost:8081/orders   -H "Content-Type: application/json"   -d '{
     "orderId": "ORD-001",
@@ -103,27 +141,104 @@ curl -X POST http://localhost:8081/orders   -H "Content-Type: application/json" 
   }'
 ```
 
+### Fluxo esperado nos logs:
+
+1️⃣ `order-api` → *Published new order to orders.new*  
+2️⃣ `billing-worker` → *Billing received order... Published billed order to orders.billed*  
+3️⃣ `notification-worker` → *Notifying customer about order id=ORD-001 (invoice=NF-..., email=cliente@example.com)*
+
 ---
 
-## 📊 Diagrama do fluxo atual
+## 📨 Contratos de Mensagens
 
-```mermaid
-graph LR
-    A[order-api] -->|orders.new| B[billing-worker]
-    B -->|orders.billed| C[(notification-worker - em breve)]
+### OrderPayload (`orders.new`)
+```json
+{
+  "orderId": "ORD-001",
+  "customerEmail": "cliente@example.com",
+  "item": "Combo X",
+  "quantity": 2
+}
+```
+
+### BilledOrder (`orders.billed`)
+```json
+{
+  "orderId": "ORD-001",
+  "customerEmail": "cliente@example.com",
+  "item": "Combo X",
+  "quantity": 2,
+  "invoiceNumber": "NF-<uuid>",
+  "billedAt": "2025-10-11T19:22:33.123Z"
+}
 ```
 
 ---
 
-## 📌 Status atual
+## 📚 Boas Práticas Demonstradas
 
-✅ order-api  
-✅ billing-worker  
-🕓 notification-worker *(em desenvolvimento)*
-
----
-
-💬 *Feedbacks e sugestões são bem-vindos! Este projeto está sendo construído de forma incremental para reforçar o aprendizado sobre mensageria e arquitetura orientada a eventos.*
+- **Desacoplamento via JMS** — cada serviço só conhece suas filas.  
+- **Retorno assíncrono** (HTTP 202 Accepted) — processamento continua em background.  
+- **Conversão JSON ↔ JMS** padronizada (`MappingJackson2MessageConverter`).  
+- **Separação de responsabilidades** clara entre API, faturamento e notificação.  
+- **Observabilidade** rápida via console do ActiveMQ.
 
 ---
 
+## 🛠️ Troubleshooting
+
+- **Connection refused / Could not connect:**  
+  Verifique se o container do ActiveMQ está rodando (`docker ps`).  
+
+- **Mensagens não chegando:**  
+  Confira no console do ActiveMQ se as filas `orders.new` e `orders.billed` estão sendo populadas.  
+
+- **Falha de conversão:**  
+  Garanta que o `_type` da mensagem exista nos `typeIdMappings` (ex.: `"BilledOrder"`).  
+
+- **Portas em uso:**  
+  Altere `server.port` no `application.yml` do serviço em conflito.  
+
+---
+
+## 🧪 Build & Test
+
+```bash
+# Em cada subprojeto
+./mvnw clean verify
+```
+
+---
+
+## 🗺️ Roadmap
+
+- Logs estruturados (JSON) e correlação por `orderId`
+- Métricas básicas e health checks
+- Retry/DLQ para mensagens com falha
+- Testes de integração com ActiveMQ em container
+
+---
+
+## ✅ Status
+
+- ✅ **order-api** (REST + publish `orders.new`)  
+- ✅ **billing-worker** (consume `orders.new` + publish `orders.billed`)  
+- ✅ **notification-worker** (consume `orders.billed` + log)  
+
+---
+
+## 🧾 Sugestões de Commits
+
+- `feat: add docker-compose with ActiveMQ broker`
+- `feat(order-api): expose POST /orders and publish to orders.new`
+- `feat(billing-worker): consume orders.new and publish orders.billed`
+- `feat(notification-worker): consume orders.billed and log notification`
+- `chore: configure MappingJackson2MessageConverter with typeId mappings`
+- `docs: update README after notification-worker rename`
+
+---
+
+## 📜 Licença
+
+Este projeto é público e educativo.  
+Use livremente como base de estudo ou demonstração de arquitetura assíncrona com JMS.
