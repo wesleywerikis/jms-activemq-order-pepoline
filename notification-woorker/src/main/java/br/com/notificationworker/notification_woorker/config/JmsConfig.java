@@ -1,4 +1,4 @@
-package br.com.orderapi.order_api.config;
+package br.com.notificationworker.notification_woorker.config;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,12 +12,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import br.com.orderapi.order_api.model.OrderPayload;
+import br.com.notificationworker.notification_woorker.model.BilledOrder;
+
 
 @Configuration
 public class JmsConfig {
 
-    public static final String QUEUE_ORDERS_NEW = "orders.new";
+    public static final String QUEUE_ORDERS_BILLED = "orders.billed";
 
     @Bean
     public MappingJackson2MessageConverter jacksonJmsMessageConverter(ObjectMapper objectMapper) {
@@ -29,7 +30,7 @@ public class JmsConfig {
         converter.setTypeIdPropertyName("_type");
 
         Map<String, Class<?>> mappings = new HashMap<>();
-        mappings.put("OrderPayload", OrderPayload.class);
+        mappings.put("BilledOrder", BilledOrder.class);
 
         converter.setTypeIdMappings(mappings);
         converter.setObjectMapper(objectMapper);
